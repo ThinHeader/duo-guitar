@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.duoguitar.duo_guitar"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = maxOf(37, flutter.compileSdkVersion)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
