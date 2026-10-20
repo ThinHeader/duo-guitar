@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:duo_guitar/protocol/constants.dart';
 import 'package:duo_guitar/protocol/fret_state.dart';
+import 'package:duo_guitar/protocol/guide_cue.dart';
 import 'package:duo_guitar/protocol/packet.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -73,5 +74,26 @@ void main() {
       frets: FretState.open,
     );
     expect(packet.encode, throwsArgumentError);
+  });
+
+  test('guide packet roundtrip', () {
+    const cue = GuideCue(
+      songId: 2,
+      step: 3,
+      beatInChord: 1,
+      bpm: 72,
+      accent: false,
+    );
+    const packet = Packet(
+      type: PacketType.guide,
+      seq: 9,
+      roomCode: '2468',
+      guide: cue,
+    );
+    final decoded = Packet.decode(packet.encode());
+    expect(decoded, isNotNull);
+    expect(decoded!.type, PacketType.guide);
+    expect(decoded.guide, cue);
+    expect(decoded.frets, FretState.open);
   });
 }

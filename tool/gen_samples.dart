@@ -33,6 +33,19 @@ void main() {
   }
 
   stdout.writeln(written);
+  _writeClick();
+}
+
+void _writeClick() {
+  final clicks = (sampleRate * 0.04).round();
+  final pcm = Int16List(clicks);
+  const freq = 1800.0;
+  for (var i = 0; i < clicks; i++) {
+    final env = 1 - i / clicks;
+    final sample = sin(2 * pi * freq * i / sampleRate) * env * 0.8;
+    pcm[i] = (sample * 32767).round().clamp(-32768, 32767);
+  }
+  File('assets/samples/click.wav').writeAsBytesSync(_wavBytes(pcm));
 }
 
 double _frequency(int string, int fret) {

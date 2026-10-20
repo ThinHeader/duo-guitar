@@ -64,8 +64,14 @@ class _StringBedState extends State<StringBed> {
             behavior: HitTestBehavior.opaque,
             onPointerDown: (event) => _move(event, height),
             onPointerMove: (event) => _move(event, height),
-            onPointerUp: (event) => _detector.end(event.pointer),
-            onPointerCancel: (event) => _detector.end(event.pointer),
+            onPointerUp: (event) {
+              final pluck = _detector.end(event.pointer, height: height);
+              if (pluck != null) {
+                widget.onStrike(pluck);
+              }
+            },
+            onPointerCancel: (event) =>
+                _detector.end(event.pointer, height: height),
             child: ColoredBox(
               color: _wood,
               child: CustomPaint(

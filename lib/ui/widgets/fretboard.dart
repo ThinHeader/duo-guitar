@@ -1,3 +1,4 @@
+import 'package:duo_guitar/chords/chord_shape.dart';
 import 'package:duo_guitar/input/fret_reducer.dart';
 import 'package:duo_guitar/protocol/constants.dart';
 import 'package:duo_guitar/protocol/fret_state.dart';
@@ -17,20 +18,22 @@ const _stringGauge = <double>[2.4, 2.1, 1.8, 1.5, 1.25, 1.05];
 
 /// Landscape fretboard. Reports the reduced [FretState] as fingers move.
 class Fretboard extends StatelessWidget {
-  const Fretboard({super.key, required this.onChanged});
+  const Fretboard({super.key, required this.onChanged, this.guide});
 
   final ValueChanged<FretState> onChanged;
+  final ChordShape? guide;
 
   @override
   Widget build(BuildContext context) {
-    return _FretboardSurface(onChanged: onChanged);
+    return _FretboardSurface(onChanged: onChanged, guide: guide);
   }
 }
 
 class _FretboardSurface extends StatefulWidget {
-  const _FretboardSurface({required this.onChanged});
+  const _FretboardSurface({required this.onChanged, required this.guide});
 
   final ValueChanged<FretState> onChanged;
+  final ChordShape? guide;
 
   @override
   State<_FretboardSurface> createState() => _FretboardSurfaceState();
@@ -104,6 +107,7 @@ class _FretboardSurfaceState extends State<_FretboardSurface> {
                       child: CustomPaint(
                         painter: _FretboardPainter(
                           touches: _touches.values.toList(growable: false),
+                          guide: widget.guide,
                         ),
                         child: const SizedBox.expand(),
                       ),
@@ -162,10 +166,11 @@ class _FretLabel extends StatelessWidget {
 }
 
 class _FretboardPainter extends CustomPainter {
-  _FretboardPainter({required List<FretTouch> touches})
-      : touches = List<FretTouch>.unmodifiable(touches);
+  _FretboardPainter({required List<FretTouch> touches, required this.guide})
+    : touches = List<FretTouch>.unmodifiable(touches);
 
   final List<FretTouch> touches;
+  final ChordShape? guide;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -237,6 +242,34 @@ class _FretboardPainter extends CustomPainter {
       );
       canvas.drawCircle(center, _dotRadius(bandHeight), dotPaint);
     }
+
+    final shape = guide;
+    if (shape == null) {
+      return;
+    }
+    final hollow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = const Color(0xFFE0A100);
+    final mute = Paint()
+      ..color = const Color(0xFFE7A090)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    for (var string = 0; string < DuoGuitar.stringCount; string++) {
+      final y = (string + 0.5) * bandHeight;
+      if (!shape.play[string]) {
+        const arm = 5.0;
+        canvas.drawLine(Offset(14 - arm, y - arm), Offset(14 + arm, y + arm), mute);
+        canvas.drawLine(Offset(14 - arm, y + arm), Offset(14 + arm, y - arm), mute);
+        continue;
+      }
+      final fret = shape.frets[string];
+      canvas.drawCircle(
+        Offset((fret + 0.5) * fretWidth, y),
+        _dotRadius(bandHeight) + 2,
+        hollow,
+      );
+    }
   }
 
   double _dotRadius(double bandHeight) {
@@ -268,6 +301,9 @@ class _FretboardPainter extends CustomPainter {
       if (previous.string != next.string || previous.fret != next.fret) {
         return true;
       }
+    }
+    if (oldDelegate.guide?.name != guide?.name) {
+      return true;
     }
     return false;
   }

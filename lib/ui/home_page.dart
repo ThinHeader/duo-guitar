@@ -1,6 +1,7 @@
 import 'package:duo_guitar/ui/body_page.dart';
 import 'package:duo_guitar/ui/debug_duo_page.dart';
 import 'package:duo_guitar/ui/neck_page.dart';
+import 'package:duo_guitar/ui/practice_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -70,6 +71,20 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PracticePage(showFretboard: true),
+                    ),
+                  );
+                },
+                child: const Text(
+                  '练习',
+                  style: TextStyle(color: _amber, fontSize: 16),
                 ),
               ),
               if (kDebugMode) ...[

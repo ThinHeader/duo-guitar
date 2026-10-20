@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:duo_guitar/audio/strum_engine.dart';
+import 'package:duo_guitar/ble/discovery.dart';
 import 'package:duo_guitar/net/udp_body_session.dart';
+import 'package:duo_guitar/ui/practice_page.dart';
 import 'package:duo_guitar/protocol/constants.dart';
 import 'package:duo_guitar/protocol/fret_state.dart';
 import 'package:duo_guitar/ui/widgets/string_bed.dart';
@@ -34,6 +36,7 @@ class BodyPage extends StatefulWidget {
 class _BodyPageState extends State<BodyPage> {
   late final UdpBodySession _session;
   late final StrumEngine _engine;
+  final BodyAdvertiser _advertiser = BodyAdvertiser();
   var _live = false;
   String? _error;
 
@@ -55,6 +58,10 @@ class _BodyPageState extends State<BodyPage> {
       if (!mounted) {
         return;
       }
+      await _advertiser.start(
+        roomCode: _session.roomCode,
+        ip: _session.localIp.value,
+      );
       await _engine.init();
     } catch (error) {
       if (!mounted) {
@@ -68,6 +75,7 @@ class _BodyPageState extends State<BodyPage> {
   void dispose() {
     if (_live) {
       unawaited(_session.close());
+      unawaited(_advertiser.stop());
       unawaited(_engine.dispose());
     }
     super.dispose();
@@ -177,7 +185,21 @@ class _BodyPageState extends State<BodyPage> {
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PracticePage(
+                  session: _session,
+                  engine: _engine,
+                  showStrings: true,
+                ),
+              ),
+            );
+          },
+          child: const Text('练习', style: TextStyle(color: _amber, fontSize: 16)),
+        ),
         const Divider(height: 1, thickness: 1, color: Color(0xFF3D2B1C)),
         Expanded(
           child: StringBed(

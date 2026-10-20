@@ -3,12 +3,14 @@ import 'dart:io';
 
 import 'package:duo_guitar/protocol/constants.dart';
 import 'package:duo_guitar/protocol/fret_state.dart';
+import 'package:duo_guitar/protocol/guide_cue.dart';
 import 'package:duo_guitar/protocol/packet.dart';
 import 'package:flutter/foundation.dart';
 
 /// Guitar-neck UDP peer. Finds a body, then streams frets and heartbeats.
 class UdpNeckSession {
   final ValueNotifier<LinkStatus> status = ValueNotifier(LinkStatus.waiting);
+  final ValueNotifier<GuideCue?> guide = ValueNotifier(null);
 
   RawDatagramSocket? _socket;
   StreamSubscription<RawSocketEvent>? _subscription;
@@ -140,12 +142,16 @@ class UdpNeckSession {
   }
 
   void _handleDatagram(Datagram datagram) {
-    final pending = _offerCompleter;
-    if (pending == null || pending.isCompleted) {
-      return;
-    }
     final packet = _tryDecode(datagram.data);
     if (packet == null || packet.roomCode != _roomCode) {
+      return;
+    }
+    if (packet.type == PacketType.guide) {
+      guide.value = packet.guide;
+      return;
+    }
+    final pending = _offerCompleter;
+    if (pending == null || pending.isCompleted) {
       return;
     }
     if (packet.type != PacketType.offer) {

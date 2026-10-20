@@ -9,6 +9,8 @@ class StrumEngine {
   final SoLoud _soloud = SoLoud.instance;
   final Map<String, AudioSource> _sources = {};
   final Map<int, SoundHandle> _handles = {};
+  AudioSource? _click;
+  SoundHandle? _clickHandle;
 
   bool _started = false;
   bool _disposed = false;
@@ -26,6 +28,7 @@ class StrumEngine {
         _sources['$string:$fret'] = await _soloud.loadAsset(asset);
       }
     }
+    _click = await _soloud.loadAsset('assets/samples/click.wav');
   }
 
   /// Stops the previous voice on [stringIndex], then plays [state]'s fret.
@@ -46,6 +49,21 @@ class StrumEngine {
     _handles[stringIndex] = await _soloud.play(source);
   }
 
+  Future<void> playClick({required bool accent}) async {
+    if (_disposed) {
+      return;
+    }
+    final source = _click;
+    if (source == null) {
+      return;
+    }
+    final previous = _clickHandle;
+    if (previous != null) {
+      await _stopQuietly(previous);
+    }
+    _clickHandle = await _soloud.play(source, volume: accent ? 1 : 0.45);
+  }
+
   Future<void> dispose() async {
     if (_disposed) {
       return;
@@ -55,10 +73,19 @@ class StrumEngine {
       await _stopQuietly(handle);
     }
     _handles.clear();
+    if (_clickHandle != null) {
+      await _stopQuietly(_clickHandle!);
+      _clickHandle = null;
+    }
     for (final source in _sources.values) {
       await _soloud.disposeSource(source);
     }
     _sources.clear();
+    final click = _click;
+    if (click != null) {
+      await _soloud.disposeSource(click);
+      _click = null;
+    }
     if (_started) {
       _soloud.deinit();
     }

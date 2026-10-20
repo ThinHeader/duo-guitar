@@ -23,7 +23,8 @@ enum PacketType {
   discover(1),
   offer(2),
   fret(3),
-  heartbeat(4);
+  heartbeat(4),
+  guide(5);
 
   const PacketType(this.code);
 

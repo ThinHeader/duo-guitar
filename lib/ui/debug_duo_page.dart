@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:duo_guitar/audio/strum_engine.dart';
+import 'package:duo_guitar/practice/practice_clock.dart';
+import 'package:duo_guitar/practice/songs.dart';
 import 'package:duo_guitar/protocol/fret_state.dart';
+import 'package:duo_guitar/protocol/guide_cue.dart';
 import 'package:duo_guitar/ui/body_page.dart';
 import 'package:duo_guitar/ui/neck_page.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +22,10 @@ class DebugDuoPage extends StatefulWidget {
 
 class _DebugDuoPageState extends State<DebugDuoPage> {
   final ValueNotifier<FretState> _frets = ValueNotifier(FretState.open);
+  final ValueNotifier<GuideCue?> _cue = ValueNotifier(null);
+  final PracticeClock _clock = PracticeClock();
   final StrumEngine _engine = StrumEngine();
+  Timer? _practiceTimer;
   String? _error;
 
   @override
@@ -41,9 +47,46 @@ class _DebugDuoPageState extends State<DebugDuoPage> {
 
   @override
   void dispose() {
+    _practiceTimer?.cancel();
+    _clock.stop();
     _frets.dispose();
+    _cue.dispose();
     unawaited(_engine.dispose());
     super.dispose();
+  }
+
+  void _togglePractice() {
+    if (_clock.running) {
+      _practiceTimer?.cancel();
+      _clock.stop();
+      _cue.value = null;
+      setState(() {});
+      return;
+    }
+    final song = practiceSongs.first;
+    final beat = _clock.start(song, bpm: song.defaultBpm);
+    if (beat != null) {
+      _publish(beat);
+    }
+    _practiceTimer = Timer.periodic(const Duration(milliseconds: 40), (_) {
+      final next = _clock.poll();
+      if (next != null) {
+        _publish(next);
+      }
+    });
+    setState(() {});
+  }
+
+  void _publish(PracticeBeat beat) {
+    final cue = GuideCue(
+      songId: beat.song.id,
+      step: beat.stepIndex,
+      beatInChord: beat.beatInChord,
+      bpm: beat.bpm,
+      accent: beat.accent,
+    );
+    _cue.value = cue;
+    unawaited(_engine.playClick(accent: beat.accent));
   }
 
   @override
@@ -73,6 +116,7 @@ class _DebugDuoPageState extends State<DebugDuoPage> {
                 Expanded(
                   child: NeckPage(
                     embedded: true,
+                    cueListenable: _cue,
                     onFret: (state) => _frets.value = state,
                   ),
                 ),
@@ -91,6 +135,13 @@ class _DebugDuoPageState extends State<DebugDuoPage> {
                   ),
                 ),
               ],
+            ),
+          ),
+          TextButton(
+            onPressed: _togglePractice,
+            child: Text(
+              _clock.running ? '停止跟弹' : '跟弹',
+              style: const TextStyle(color: Color(0xFFE0A100)),
             ),
           ),
         ],

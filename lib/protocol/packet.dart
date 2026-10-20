@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'constants.dart';
 import 'fret_state.dart';
+import 'guide_cue.dart';
 
 /// 16-byte UDP payload.
 ///
@@ -13,20 +14,23 @@ import 'fret_state.dart';
 /// 3     packet type
 /// 4-5   uint16 sequence, big endian
 /// 6-9   four ASCII room-code digits
-/// 10-15 six fret bytes, each 0-12
+/// 10-15 six fret bytes, each 0-12.
+///       A guide packet stores a [GuideCue] in those bytes instead.
 /// ```
 class Packet {
   const Packet({
     required this.type,
     required this.seq,
     required this.roomCode,
-    required this.frets,
+    this.frets = FretState.open,
+    this.guide,
   });
 
   final PacketType type;
   final int seq;
   final String roomCode;
   final FretState frets;
+  final GuideCue? guide;
 
   Uint8List encode() {
     if (!_isRoomCode(roomCode)) {
@@ -40,6 +44,14 @@ class Packet {
     bytes[3] = type.code;
     data.setUint16(4, seq & 0xFFFF);
     bytes.setRange(6, 10, ascii.encode(roomCode));
+    if (type == PacketType.guide) {
+      final cue = guide;
+      if (cue == null) {
+        throw ArgumentError.notNull('guide');
+      }
+      bytes.setRange(10, 16, cue.bytes);
+      return bytes;
+    }
     for (var i = 0; i < DuoGuitar.stringCount; i++) {
       final fret = frets[i];
       if (fret < 0 || fret > DuoGuitar.maxFret) {
@@ -70,6 +82,14 @@ class Packet {
     if (!_isRoomCode(roomCode)) {
       return null;
     }
+    if (type == PacketType.guide) {
+      return Packet(
+        type: type,
+        seq: seq,
+        roomCode: roomCode,
+        guide: GuideCue.fromBytes(bytes.sublist(10, 16)),
+      );
+    }
     final frets = List<int>.filled(DuoGuitar.stringCount, 0);
     for (var i = 0; i < DuoGuitar.stringCount; i++) {
       final fret = bytes[10 + i];
@@ -78,7 +98,12 @@ class Packet {
       }
       frets[i] = fret;
     }
-    return Packet(type: type, seq: seq, roomCode: roomCode, frets: FretState(frets));
+    return Packet(
+      type: type,
+      seq: seq,
+      roomCode: roomCode,
+      frets: FretState(frets),
+    );
   }
 }
 

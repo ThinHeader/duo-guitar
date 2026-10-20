@@ -50,7 +50,7 @@ void main() {
     test('end makes the next event a new first sample', () {
       final detector = StrumDetector();
       detector.move(pointer: 1, y: 0, height: _height);
-      detector.end(1);
+      detector.end(1, height: _height);
       expect(detector.move(pointer: 1, y: 600, height: _height), isEmpty);
     });
 
@@ -59,6 +59,22 @@ void main() {
       detector.move(pointer: 1, y: 0, height: _height);
       expect(detector.move(pointer: 1, y: 600, height: 0), isEmpty);
       expect(detector.move(pointer: 1, y: 600, height: -5), isEmpty);
+    });
+
+    test('a tap on string 2 plucks only that string', () {
+      final detector = StrumDetector();
+      detector.move(pointer: 1, y: 250, height: _height);
+      expect(detector.end(1, height: _height), 2);
+    });
+
+    test('lifting after a strum does not add another pluck', () {
+      final detector = StrumDetector();
+      detector.move(pointer: 1, y: 0, height: _height);
+      expect(
+        detector.move(pointer: 1, y: _height, height: _height),
+        [0, 1, 2, 3, 4, 5],
+      );
+      expect(detector.end(1, height: _height), isNull);
     });
   });
 }

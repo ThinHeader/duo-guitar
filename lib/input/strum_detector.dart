@@ -1,10 +1,10 @@
-/// Detects a vertical strum across horizontal string centers.
+/// Detects a vertical strum across horizontal string centers, and a tap on one string.
 class StrumDetector {
   StrumDetector({this.stringCount = 6});
 
   final int stringCount;
 
-  final Map<int, double> _y = {};
+  final Map<int, _Track> _tracks = {};
 
   /// First event for a pointer only records Y and returns an empty list.
   /// Later events return string indexes whose centers were crossed, in
@@ -17,9 +17,15 @@ class StrumDetector {
     if (height <= 0 || stringCount <= 0) {
       return const [];
     }
-    final previous = _y[pointer];
-    _y[pointer] = y;
-    if (previous == null || y == previous) {
+    final track = _tracks[pointer];
+    if (track == null) {
+      _tracks[pointer] = _Track(y);
+      return const [];
+    }
+    final previous = track.y;
+    track.travel += (y - previous).abs();
+    track.y = y;
+    if (y == previous) {
       return const [];
     }
 
@@ -38,14 +44,30 @@ class StrumDetector {
         }
       }
     }
-    if (hits.isEmpty) {
-      return const [];
+    if (hits.isNotEmpty) {
+      track.crossed = true;
     }
     return hits;
   }
 
-  void end(int pointer) {
-    _y.remove(pointer);
+  /// A lift that never crossed a string and barely moved plucks that string.
+  int? end(int pointer, {required double height}) {
+    final track = _tracks.remove(pointer);
+    if (track == null || height <= 0 || stringCount <= 0) {
+      return null;
+    }
+    if (track.crossed) {
+      return null;
+    }
+    final slop = height * 0.03 < 12 ? 12.0 : height * 0.03;
+    if (track.travel > slop) {
+      return null;
+    }
+    final string = (track.y / height * stringCount).floor();
+    if (string < 0 || string >= stringCount) {
+      return null;
+    }
+    return string;
   }
 
   double _center(int string, double height) {
@@ -56,4 +78,12 @@ class StrumDetector {
   bool _crossed(double from, double to, double center) {
     return (from < center && to > center) || (from > center && to < center);
   }
+}
+
+class _Track {
+  _Track(this.y);
+
+  double y;
+  double travel = 0;
+  bool crossed = false;
 }

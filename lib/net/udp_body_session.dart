@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:duo_guitar/net/lan_ip.dart';
 import 'package:duo_guitar/protocol/constants.dart';
 import 'package:duo_guitar/protocol/fret_state.dart';
+import 'package:duo_guitar/protocol/guide_cue.dart';
 import 'package:duo_guitar/protocol/packet.dart';
 import 'package:flutter/foundation.dart';
 
@@ -98,15 +99,23 @@ class UdpBodySession {
     }
     switch (packet.type) {
       case PacketType.discover:
+        _rememberNeck(datagram);
         _replyOffer(socket, datagram);
         return;
       case PacketType.fret:
       case PacketType.heartbeat:
+        _rememberNeck(datagram);
         _acceptFrets(packet.frets, packet.seq);
         return;
       case PacketType.offer:
+      case PacketType.guide:
         return;
     }
+  }
+
+  void _rememberNeck(Datagram datagram) {
+    _neckAddress = datagram.address;
+    _neckPort = datagram.port;
   }
 
   void _replyOffer(RawDatagramSocket socket, Datagram datagram) {
@@ -157,6 +166,26 @@ class UdpBodySession {
       _dropoutReported = true;
       _peerSeq = null;
     }
+  }
+
+  InternetAddress? _neckAddress;
+  int? _neckPort;
+
+  /// Sends the current practice step back to the last neck that contacted us.
+  void sendGuide(GuideCue cue) {
+    final socket = _socket;
+    final address = _neckAddress;
+    final port = _neckPort;
+    if (_closed || socket == null || address == null || port == null) {
+      return;
+    }
+    final packet = Packet(
+      type: PacketType.guide,
+      seq: _nextSeq(),
+      roomCode: roomCode,
+      guide: cue,
+    );
+    socket.send(packet.encode(), address, port);
   }
 
   int _nextSeq() {

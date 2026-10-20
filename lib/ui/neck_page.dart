@@ -1,9 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:duo_guitar/ble/discovery.dart';
+
+import 'package:duo_guitar/chords/chord_shape.dart';
 import 'package:duo_guitar/net/udp_neck_session.dart';
+import 'package:duo_guitar/practice/songs.dart';
 import 'package:duo_guitar/protocol/constants.dart';
 import 'package:duo_guitar/protocol/fret_state.dart';
+import 'package:duo_guitar/protocol/guide_cue.dart';
+import 'package:duo_guitar/ui/practice_page.dart';
 import 'package:duo_guitar/ui/widgets/fretboard.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -21,10 +29,16 @@ const _fieldRadius = BorderRadius.all(Radius.circular(8));
 /// [embedded] draws only the fretboard and forwards [onFret]. Otherwise the
 /// page joins a room and sends fret changes through [UdpNeckSession].
 class NeckPage extends StatefulWidget {
-  const NeckPage({super.key, this.embedded = false, this.onFret});
+  const NeckPage({
+    super.key,
+    this.embedded = false,
+    this.onFret,
+    this.cueListenable,
+  });
 
   final bool embedded;
   final ValueChanged<FretState>? onFret;
+  final ValueListenable<GuideCue?>? cueListenable;
 
   @override
   State<NeckPage> createState() => _NeckPageState();
@@ -38,10 +52,59 @@ class _NeckPageState extends State<NeckPage> {
   var _joining = false;
   var _joined = false;
   String? _error;
+  ChordShape? _hint;
+  ChordShape? _practice;
 
   bool get _busy => _joining || _joined;
 
-  Future<void> _join() async {
+  @override
+  void initState() {
+    super.initState();
+    widget.cueListenable?.addListener(_onExternalCue);
+  }
+
+  @override
+  void didUpdateWidget(NeckPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cueListenable == widget.cueListenable) {
+      return;
+    }
+    oldWidget.cueListenable?.removeListener(_onExternalCue);
+    widget.cueListenable?.addListener(_onExternalCue);
+  }
+
+  void _onExternalCue() {
+    _applyCue(widget.cueListenable?.value);
+  }
+
+  void _onSessionGuide() {
+    _applyCue(_session?.guide.value);
+  }
+
+  void _applyCue(GuideCue? cue) {
+    if (!mounted) {
+      return;
+    }
+    if (cue == null) {
+      if (_practice != null) {
+        setState(() => _practice = null);
+      }
+      return;
+    }
+    final chord = chordForCue(songId: cue.songId, step: cue.step);
+    if (chord == null) {
+      return;
+    }
+    setState(() => _practice = chord);
+  }
+
+  void _toggleHint(ChordShape shape) {
+    setState(() {
+      _hint = _hint?.name == shape.name ? null : shape;
+    });
+  }
+
+  Future<void> _join({bool bluetooth = false}) async {
     if (widget.embedded || _joining || _joined) {
       return;
     }
@@ -56,19 +119,49 @@ class _NeckPageState extends State<NeckPage> {
     try {
       final session = UdpNeckSession();
       _session = session;
-      if (ip.isEmpty) {
-        await session.join(roomCode: roomCode);
+      if (bluetooth) {
+        if (!Platform.isAndroid) {
+          throw StateError('蓝牙发现仅支持 Android');
+        }
+        final found = await findBodyIp(roomCode: roomCode);
+        if (found == null) {
+          throw StateError('未找到琴身');
+        }
+        await session.join(roomCode: roomCode, manualIp: found);
+      } else if (ip.isEmpty) {
+        try {
+          await session.join(roomCode: roomCode);
+        } on StateError {
+          await _closeQuietly(session);
+          _session = null;
+          if (!Platform.isAndroid) {
+            rethrow;
+          }
+          final found = await findBodyIp(roomCode: roomCode);
+          if (found == null) {
+            throw StateError('未找到琴身');
+          }
+          final retry = UdpNeckSession();
+          _session = retry;
+          await retry.join(roomCode: roomCode, manualIp: found);
+        }
       } else {
         await session.join(roomCode: roomCode, manualIp: ip);
+      }
+      final joined = _session;
+      if (joined == null) {
+        return;
       }
       if (!mounted) {
         final pending = _session;
         _session = null;
         if (pending != null) {
+          pending.guide.removeListener(_onSessionGuide);
           await _closeQuietly(pending);
         }
         return;
       }
+      joined.guide.addListener(_onSessionGuide);
       setState(() => _joined = true);
     } catch (e) {
       final failed = _session;
@@ -110,8 +203,10 @@ class _NeckPageState extends State<NeckPage> {
     final session = _session;
     _session = null;
     if (session != null) {
+      session.guide.removeListener(_onSessionGuide);
       unawaited(session.close());
     }
+    widget.cueListenable?.removeListener(_onExternalCue);
     _roomCode.dispose();
     _bodyIp.dispose();
     super.dispose();
@@ -119,7 +214,10 @@ class _NeckPageState extends State<NeckPage> {
 
   @override
   Widget build(BuildContext context) {
-    final board = Fretboard(onChanged: _onFret);
+    final board = Fretboard(
+      onChanged: _onFret,
+      guide: _practice ?? _hint,
+    );
     if (widget.embedded) {
       return board;
     }
@@ -191,6 +289,28 @@ class _NeckPageState extends State<NeckPage> {
                         ),
                         child: const Text('加入'),
                       ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: _busy || !Platform.isAndroid
+                            ? null
+                            : () => _join(bluetooth: true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF2A2118),
+                          foregroundColor: _ink,
+                          disabledBackgroundColor: const Color(0xFF3D3128),
+                          disabledForegroundColor: const Color(0xFF9A8874),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: _fieldRadius,
+                          ),
+                        ),
+                        child: Text(
+                          Platform.isAndroid ? '用蓝牙找琴身' : '蓝牙发现仅支持 Android',
+                        ),
+                      ),
                     ],
                   ),
                   if (_joined && session != null) ...[
@@ -209,9 +329,71 @@ class _NeckPageState extends State<NeckPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 4),
+            _ChordChips(selected: _hint, onToggle: _toggleHint),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PracticePage(showFretboard: true),
+                    ),
+                  );
+                },
+                child: const Text(
+                  '本地跟弹',
+                  style: TextStyle(color: _amber),
+                ),
+              ),
+            ),
+            if (_practice != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, top: 4),
+                child: Text(
+                  '跟弹 ${_practice!.name}',
+                  style: const TextStyle(color: _amber, fontSize: 14),
+                ),
+              ),
             Expanded(child: board),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ChordChips extends StatelessWidget {
+  const _ChordChips({required this.selected, required this.onToggle});
+
+  final ChordShape? selected;
+  final ValueChanged<ChordShape> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Row(
+        children: [
+          for (final shape in ChordShape.hints) ...[
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: ChoiceChip(
+                  label: Text(shape.name),
+                  selected: selected?.name == shape.name,
+                  onSelected: (_) => onToggle(shape),
+                  selectedColor: _amber,
+                  backgroundColor: _fieldFill,
+                  labelStyle: TextStyle(
+                    color: selected?.name == shape.name ? _wood : _ink,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
