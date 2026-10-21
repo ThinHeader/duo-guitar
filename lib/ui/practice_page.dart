@@ -48,6 +48,8 @@ class _PracticePageState extends State<PracticePage> {
 
   StrumEngine? get _engine => widget.engine ?? _ownedEngine;
 
+  ChordShape get _guide => _chord ?? _song.steps.first.chord;
+
   @override
   void initState() {
     super.initState();
@@ -131,7 +133,8 @@ class _PracticePageState extends State<PracticePage> {
     return Scaffold(
       backgroundColor: _wood,
       appBar: AppBar(
-        title: const Text('练习'),
+        toolbarHeight: 44,
+        title: Text(_guide.name),
         backgroundColor: _wood,
         foregroundColor: _ink,
         surfaceTintColor: _wood,
@@ -142,78 +145,96 @@ class _PracticePageState extends State<PracticePage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              height: 44,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: practiceSongs.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final song = practiceSongs[index];
-                  final selected = song.id == _song.id;
-                  return ChoiceChip(
-                    label: Text(song.name),
-                    selected: selected,
-                    onSelected: _running
-                        ? null
-                        : (_) => setState(() {
-                            _song = song;
-                            _bpm = song.defaultBpm;
-                          }),
-                    selectedColor: _amber,
-                    labelStyle: TextStyle(color: selected ? _wood : _ink),
-                    backgroundColor: const Color(0xFF2A2118),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (final bpm in practiceBpms) ...[
+              height: 40,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      itemCount: practiceSongs.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 6),
+                      itemBuilder: (context, index) {
+                        final song = practiceSongs[index];
+                        final selected = song.id == _song.id;
+                        return ChoiceChip(
+                          label: Text(song.name),
+                          selected: selected,
+                          visualDensity: VisualDensity.compact,
+                          onSelected: _running
+                              ? null
+                              : (_) => setState(() {
+                                  _song = song;
+                                  _bpm = song.defaultBpm;
+                                }),
+                          selectedColor: _amber,
+                          labelStyle: TextStyle(
+                            color: selected ? _wood : _ink,
+                            fontSize: 13,
+                          ),
+                          backgroundColor: const Color(0xFF2A2118),
+                        );
+                      },
+                    ),
+                  ),
+                  for (final bpm in practiceBpms) ...[
+                    const SizedBox(width: 4),
+                    ChoiceChip(
+                      label: Text('$bpm'),
+                      selected: _bpm == bpm,
+                      visualDensity: VisualDensity.compact,
+                      onSelected: _running
+                          ? null
+                          : (_) => setState(() => _bpm = bpm),
+                      selectedColor: _amber,
+                      labelStyle: TextStyle(
+                        color: _bpm == bpm ? _wood : _ink,
+                        fontSize: 13,
+                      ),
+                      backgroundColor: const Color(0xFF2A2118),
+                    ),
+                  ],
                   const SizedBox(width: 8),
-                  ChoiceChip(
-                    label: Text('$bpm'),
-                    selected: _bpm == bpm,
-                    onSelected: _running
-                        ? null
-                        : (_) => setState(() => _bpm = bpm),
-                    selectedColor: _amber,
-                    labelStyle: TextStyle(color: _bpm == bpm ? _wood : _ink),
-                    backgroundColor: const Color(0xFF2A2118),
+                  FilledButton(
+                    onPressed: _running ? _stop : _start,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _amber,
+                      foregroundColor: _wood,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                    child: Text(_running ? '停止' : '开始'),
                   ),
+                  const SizedBox(width: 8),
                 ],
-                const SizedBox(width: 16),
-                FilledButton(
-                  onPressed: _running ? _stop : _start,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _amber,
-                    foregroundColor: _wood,
-                  ),
-                  child: Text(_running ? '停止' : '开始'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _chord == null ? '选一首，点开始' : _chord!.name,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _ink,
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
               ),
             ),
-            Text(
-              _song.steps.map((step) => step.chord.name).join('  '),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: _muted, fontSize: 14),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    for (final step in _song.steps)
+                      TextSpan(
+                        text: '${step.chord.name}   ',
+                        style: TextStyle(
+                          color: step.chord.name == _guide.name
+                              ? _amber
+                              : _muted,
+                          fontWeight: step.chord.name == _guide.name
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          fontSize: 14,
+                        ),
+                      ),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
-            const SizedBox(height: 8),
             if (widget.showFretboard)
               Expanded(
-                child: Fretboard(onChanged: (_) {}, guide: _chord),
+                child: Fretboard(onChanged: (_) {}, guide: _guide),
               ),
             if (widget.showStrings)
               Expanded(

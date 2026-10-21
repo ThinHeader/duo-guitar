@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:duo_guitar/chords/chord_shape.dart';
 import 'package:duo_guitar/input/fret_reducer.dart';
 import 'package:duo_guitar/protocol/constants.dart';
@@ -12,6 +14,16 @@ const _finger = Color(0xFFFFF4D0);
 const _label = Color(0xFFF3E6C8);
 
 const _labeledFrets = <int>{0, 3, 5, 7, 9, 12};
+
+/// Room left of the nut for open-string circles and mute marks.
+const _markerGutter = 28.0;
+
+double _gutterFor(double width) {
+  if (width <= _markerGutter + 40) {
+    return 0;
+  }
+  return _markerGutter;
+}
 
 /// Low E (top) down to high E. Thicker strings sit toward the top of the neck.
 const _stringGauge = <double>[2.4, 2.1, 1.8, 1.5, 1.25, 1.05];
@@ -44,10 +56,21 @@ class _FretboardSurfaceState extends State<_FretboardSurface> {
   FretState _state = FretState.open;
 
   void _put(PointerEvent event, Size size) {
-    if (size.isEmpty || !size.width.isFinite || !size.height.isFinite) {
+    final gutter = _gutterFor(size.width);
+    final playableWidth = size.width - gutter;
+    if (playableWidth <= 0 ||
+        size.isEmpty ||
+        !size.width.isFinite ||
+        !size.height.isFinite) {
       return;
     }
-    final touch = fretAt(localPosition: event.localPosition, size: size);
+    final touch = fretAt(
+      localPosition: Offset(
+        event.localPosition.dx - gutter,
+        event.localPosition.dy,
+      ),
+      size: Size(playableWidth, size.height),
+    );
     if (touch == null) {
       _clear(event.pointer);
       return;
@@ -131,13 +154,31 @@ class _FretLabels extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 18,
-      child: Row(
-        children: [
-          for (var fret = 0; fret < DuoGuitar.fretCount; fret++)
-            Expanded(child: _FretLabel(fret)),
-        ],
+      height: 16,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Row(
+            children: [
+              SizedBox(width: _gutterFor(constraints.maxWidth)),
+              const Expanded(child: _FretLabelRow()),
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+class _FretLabelRow extends StatelessWidget {
+  const _FretLabelRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var fret = 0; fret < DuoGuitar.fretCount; fret++)
+          Expanded(child: _FretLabel(fret)),
+      ],
     );
   }
 }
@@ -178,7 +219,8 @@ class _FretboardPainter extends CustomPainter {
       return;
     }
 
-    final fretWidth = size.width / DuoGuitar.fretCount;
+    final left = _gutterFor(size.width);
+    final fretWidth = (size.width - left) / DuoGuitar.fretCount;
     final bandHeight = size.height / DuoGuitar.stringCount;
     final cellPaint = Paint()..color = _pressed;
 
@@ -188,7 +230,7 @@ class _FretboardPainter extends CustomPainter {
       }
       canvas.drawRect(
         Rect.fromLTWH(
-          touch.fret * fretWidth,
+          left + touch.fret * fretWidth,
           touch.string * bandHeight,
           fretWidth,
           bandHeight,
@@ -201,13 +243,10 @@ class _FretboardPainter extends CustomPainter {
       ..color = _fretLine
       ..strokeCap = StrokeCap.square
       ..strokeWidth = 1.5;
-    final inset = size.width < 4 ? 0.0 : 0.75;
     for (var wire = 0; wire <= DuoGuitar.fretCount; wire++) {
-      final x = wire == 0
-          ? inset
-          : wire == DuoGuitar.fretCount
-              ? size.width - inset
-              : wire * fretWidth;
+      final x = wire == DuoGuitar.fretCount
+          ? size.width - 0.75
+          : left + wire * fretWidth;
       wirePaint.strokeWidth = wire == 0 ? 3 : 1.5;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), wirePaint);
     }
@@ -224,23 +263,24 @@ class _FretboardPainter extends CustomPainter {
       shadowPaint.strokeWidth = gauge;
       stringPaint.strokeWidth = gauge;
       canvas.drawLine(
-        Offset(0, y + 0.7),
+        Offset(left, y + 0.7),
         Offset(size.width, y + 0.7),
         shadowPaint,
       );
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), stringPaint);
+      canvas.drawLine(Offset(left, y), Offset(size.width, y), stringPaint);
     }
 
     final dotPaint = Paint()..color = _finger;
+    final fingerRadius = _markRadius(bandHeight, fretWidth);
     for (final touch in touches) {
       if (!_onBoard(touch)) {
         continue;
       }
       final center = Offset(
-        (touch.fret + 0.5) * fretWidth,
+        left + (touch.fret + 0.5) * fretWidth,
         (touch.string + 0.5) * bandHeight,
       );
-      canvas.drawCircle(center, _dotRadius(bandHeight), dotPaint);
+      canvas.drawCircle(center, fingerRadius, dotPaint);
     }
 
     final shape = guide;
@@ -255,32 +295,40 @@ class _FretboardPainter extends CustomPainter {
       ..color = const Color(0xFFE7A090)
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
+    final hintRadius = _markRadius(bandHeight, fretWidth);
+    final markerX = left * 0.45;
     for (var string = 0; string < DuoGuitar.stringCount; string++) {
       final y = (string + 0.5) * bandHeight;
       if (!shape.play[string]) {
-        const arm = 5.0;
-        canvas.drawLine(Offset(14 - arm, y - arm), Offset(14 + arm, y + arm), mute);
-        canvas.drawLine(Offset(14 - arm, y + arm), Offset(14 + arm, y - arm), mute);
+        final arm = math.min(5.0, bandHeight * 0.22);
+        canvas.drawLine(
+          Offset(markerX - arm, y - arm),
+          Offset(markerX + arm, y + arm),
+          mute,
+        );
+        canvas.drawLine(
+          Offset(markerX - arm, y + arm),
+          Offset(markerX + arm, y - arm),
+          mute,
+        );
         continue;
       }
       final fret = shape.frets[string];
+      if (fret <= 0) {
+        canvas.drawCircle(Offset(markerX, y), hintRadius * 0.72, hollow);
+        continue;
+      }
       canvas.drawCircle(
-        Offset((fret + 0.5) * fretWidth, y),
-        _dotRadius(bandHeight) + 2,
+        Offset(left + (fret + 0.5) * fretWidth, y),
+        hintRadius,
         hollow,
       );
     }
   }
 
-  double _dotRadius(double bandHeight) {
-    final radius = bandHeight * 0.18;
-    if (radius < 3) {
-      return 3;
-    }
-    if (radius > 9) {
-      return 9;
-    }
-    return radius;
+  double _markRadius(double bandHeight, double fretWidth) {
+    final radius = math.min(bandHeight * 0.32, fretWidth * 0.28);
+    return radius.clamp(4.0, 16.0);
   }
 
   bool _onBoard(FretTouch touch) {

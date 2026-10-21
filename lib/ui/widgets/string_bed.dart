@@ -8,15 +8,18 @@ const _string = Color(0xFFE6D3A3);
 const _amber = Color(0xFFE0A100);
 const _dim = Color(0xFF9A8874);
 
+const _stringNames = ['E', 'A', 'D', 'G', 'B', 'e'];
+
 const _frettedLabel = TextStyle(
   color: _amber,
-  fontSize: 20,
+  fontSize: 18,
   fontWeight: FontWeight.w700,
 );
 
 const _openLabel = TextStyle(
   color: _dim,
-  fontSize: 16,
+  fontSize: 15,
+  fontWeight: FontWeight.w600,
 );
 
 /// Six horizontal strings. A vertical stroke strikes each string it crosses.
@@ -79,7 +82,12 @@ class _StringBedState extends State<StringBed> {
                 child: Column(
                   children: [
                     for (var i = 0; i < DuoGuitar.stringCount; i++)
-                      Expanded(child: _FretLabel(fret: widget.frets[i])),
+                      Expanded(
+                        child: _FretLabel(
+                          name: _stringNames[i],
+                          fret: widget.frets[i],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -92,8 +100,9 @@ class _StringBedState extends State<StringBed> {
 }
 
 class _FretLabel extends StatelessWidget {
-  const _FretLabel({required this.fret});
+  const _FretLabel({required this.name, required this.fret});
 
+  final String name;
   final int fret;
 
   @override
@@ -102,9 +111,9 @@ class _FretLabel extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: SizedBox(
-        width: 48,
+        width: 28,
         child: Text(
-          fretted ? '$fret' : '空',
+          fretted ? '$fret' : name,
           textAlign: TextAlign.center,
           style: fretted ? _frettedLabel : _openLabel,
         ),
@@ -124,13 +133,13 @@ class _StringBedPainter extends CustomPainter {
       return;
     }
     final paint = Paint()..strokeCap = StrokeCap.round;
-    final start = size.width < 56 ? 0.0 : 56.0;
+    final start = size.width < 36 ? 0.0 : 32.0;
     final end = size.width <= start + 12 ? size.width : size.width - 12;
     for (var i = 0; i < DuoGuitar.stringCount; i++) {
       final y = (i + 0.5) / DuoGuitar.stringCount * size.height;
       paint
         ..color = frets[i] > 0 ? _amber : _string
-        ..strokeWidth = 3.2 - i * 0.28;
+        ..strokeWidth = 5.4 - i * 0.5;
       canvas.drawLine(Offset(start, y), Offset(end, y), paint);
     }
   }

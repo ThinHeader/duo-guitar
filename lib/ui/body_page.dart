@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 
 const _wood = Color(0xFF1A120B);
 const _ink = Color(0xFFF3E6C8);
-const _muted = Color(0xFFD9C7A6);
 const _amber = Color(0xFFE0A100);
 const _errorColor = Color(0xFFFFAB91);
 
@@ -110,14 +109,6 @@ class _BodyPageState extends State<BodyPage> {
     }
     return Scaffold(
       backgroundColor: _wood,
-      appBar: AppBar(
-        title: const Text('琴身'),
-        backgroundColor: _wood,
-        foregroundColor: _ink,
-        surfaceTintColor: _wood,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-      ),
       body: SafeArea(
         child: ListenableBuilder(
           listenable: Listenable.merge([
@@ -132,75 +123,85 @@ class _BodyPageState extends State<BodyPage> {
   }
 
   Widget _buildLive() {
-    return Column(
+    final ip = _session.localIp.value;
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 8),
-        const Text(
-          '房间码',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: _muted,
-            fontSize: 14,
-            letterSpacing: 4,
-          ),
-        ),
-        Text(
-          _session.roomCode,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: _ink,
-            fontSize: 72,
-            letterSpacing: 8,
-            fontWeight: FontWeight.w600,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _ipLabel(_session.localIp.value),
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: _ink, fontSize: 16),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _linkLabel(_session.status.value),
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: _linkColor(_session.status.value),
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              _error!,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: _errorColor, fontSize: 14),
+        SizedBox(
+          width: 88,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(2, 0, 2, 4),
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(Icons.arrow_back, color: _ink),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                Text(
+                  _session.roomCode,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: _ink,
+                    fontSize: 22,
+                    height: 1.05,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _ipLabel(ip),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: _ink, fontSize: 11, height: 1.2),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _linkLabel(_session.status.value),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _linkColor(_session.status.value),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _error!,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: _errorColor, fontSize: 11),
+                  ),
+                ],
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PracticePage(
+                          session: _session,
+                          engine: _engine,
+                          showStrings: true,
+                        ),
+                      ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: const Text('练习', style: TextStyle(color: _amber)),
+                ),
+              ],
             ),
           ),
-        ],
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => PracticePage(
-                  session: _session,
-                  engine: _engine,
-                  showStrings: true,
-                ),
-              ),
-            );
-          },
-          child: const Text('练习', style: TextStyle(color: _amber, fontSize: 16)),
         ),
-        const Divider(height: 1, thickness: 1, color: Color(0xFF3D2B1C)),
+        const VerticalDivider(width: 1, thickness: 1, color: Color(0xFF3D2B1C)),
         Expanded(
           child: StringBed(
             frets: _session.frets.value,
@@ -256,9 +257,9 @@ class _BodyPageState extends State<BodyPage> {
 
 String _ipLabel(String ip) {
   if (ip.isEmpty || ip == '0.0.0.0') {
-    return '未能获取局域网 IP';
+    return '无局域网 IP';
   }
-  return '本机 IP: $ip';
+  return ip;
 }
 
 String _linkLabel(LinkStatus status) {

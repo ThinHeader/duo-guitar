@@ -226,133 +226,127 @@ class _NeckPageState extends State<NeckPage> {
     return Scaffold(
       backgroundColor: _wood,
       appBar: AppBar(
-        title: const Text('琴颈'),
+        toolbarHeight: 44,
+        title: Text(_joined ? '琴颈  ${_roomCode.text}' : '琴颈'),
         backgroundColor: _wood,
         foregroundColor: _ink,
         surfaceTintColor: _wood,
         titleTextStyle: const TextStyle(
           color: _ink,
-          fontSize: 20,
+          fontSize: 18,
           fontWeight: FontWeight.w600,
         ),
         iconTheme: const IconThemeData(color: _ink),
         elevation: 0,
         scrolledUnderElevation: 0,
+        actions: [
+          if (_joined && session != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Center(child: _LinkStatusText(status: session.status)),
+            ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const PracticePage(showFretboard: true),
+                ),
+              );
+            },
+            child: const Text('跟弹', style: TextStyle(color: _amber)),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        flex: 2,
-                        child: _NeckField(
-                          controller: _roomCode,
-                          label: '房间码',
-                          enabled: !_busy,
-                          digits: true,
-                          textInputAction: TextInputAction.next,
+            if (!_joined)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                child: Row(
+                  children: [
+                    Flexible(
+                      flex: 2,
+                      child: _NeckField(
+                        controller: _roomCode,
+                        label: '房间码',
+                        enabled: !_busy,
+                        digits: true,
+                        textInputAction: TextInputAction.next,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      flex: 3,
+                      child: _NeckField(
+                        controller: _bodyIp,
+                        label: '琴身 IP',
+                        enabled: !_busy,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _join(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _busy ? null : _join,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _amber,
+                        foregroundColor: _wood,
+                        disabledBackgroundColor: const Color(0xFF3D3128),
+                        disabledForegroundColor: const Color(0xFF9A8874),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: _fieldRadius,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        flex: 3,
-                        child: _NeckField(
-                          controller: _bodyIp,
-                          label: '琴身 IP',
-                          enabled: !_busy,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _join(),
+                      child: const Text('加入'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _busy || !Platform.isAndroid
+                          ? null
+                          : () => _join(bluetooth: true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF2A2118),
+                        foregroundColor: _ink,
+                        disabledBackgroundColor: const Color(0xFF3D3128),
+                        disabledForegroundColor: const Color(0xFF9A8874),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: _fieldRadius,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _busy ? null : _join,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _amber,
-                          foregroundColor: _wood,
-                          disabledBackgroundColor: const Color(0xFF3D3128),
-                          disabledForegroundColor: const Color(0xFF9A8874),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: _fieldRadius,
-                          ),
-                        ),
-                        child: const Text('加入'),
+                      child: Text(
+                        Platform.isAndroid ? '用蓝牙找琴身' : '蓝牙发现仅支持 Android',
                       ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _busy || !Platform.isAndroid
-                            ? null
-                            : () => _join(bluetooth: true),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF2A2118),
-                          foregroundColor: _ink,
-                          disabledBackgroundColor: const Color(0xFF3D3128),
-                          disabledForegroundColor: const Color(0xFF9A8874),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 14,
-                          ),
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: _fieldRadius,
-                          ),
-                        ),
-                        child: Text(
-                          Platform.isAndroid ? '用蓝牙找琴身' : '蓝牙发现仅支持 Android',
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_joined && session != null) ...[
-                    const SizedBox(height: 6),
-                    _LinkStatusText(status: session.status),
-                  ],
-                  if (_error != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      _error!,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: _errorColor, fontSize: 13),
                     ),
                   ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            _ChordChips(selected: _hint, onToggle: _toggleHint),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const PracticePage(showFretboard: true),
-                    ),
-                  );
-                },
-                child: const Text(
-                  '本地跟弹',
-                  style: TextStyle(color: _amber),
                 ),
               ),
-            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                child: Text(
+                  _error!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: _errorColor, fontSize: 13),
+                ),
+              ),
+            _ChordChips(selected: _hint, onToggle: _toggleHint),
             if (_practice != null)
               Padding(
-                padding: const EdgeInsets.only(left: 12, top: 4),
+                padding: const EdgeInsets.only(left: 12, top: 2),
                 child: Text(
                   '跟弹 ${_practice!.name}',
-                  style: const TextStyle(color: _amber, fontSize: 14),
+                  style: const TextStyle(color: _amber, fontSize: 13),
                 ),
               ),
             Expanded(child: board),
@@ -372,27 +366,25 @@ class _ChordChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (final shape in ChordShape.hints) ...[
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: ChoiceChip(
-                  label: Text(shape.name),
-                  selected: selected?.name == shape.name,
-                  onSelected: (_) => onToggle(shape),
-                  selectedColor: _amber,
-                  backgroundColor: _fieldFill,
-                  labelStyle: TextStyle(
-                    color: selected?.name == shape.name ? _wood : _ink,
-                  ),
-                  visualDensity: VisualDensity.compact,
+          for (final shape in ChordShape.hints)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: ChoiceChip(
+                label: Text(shape.name),
+                selected: selected?.name == shape.name,
+                onSelected: (_) => onToggle(shape),
+                selectedColor: _amber,
+                backgroundColor: _fieldFill,
+                labelStyle: TextStyle(
+                  color: selected?.name == shape.name ? _wood : _ink,
                 ),
+                visualDensity: VisualDensity.compact,
               ),
             ),
-          ],
         ],
       ),
     );
